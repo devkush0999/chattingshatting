@@ -278,19 +278,98 @@ button:disabled {
   padding: 12px 22px;
 }
 
+.callPanel.isPinnedMode {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 24px 90px rgba(17, 24, 39, 0.45);
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 95dvh;
+  inset: 2.5dvh 2.5vw;
+  padding: 12px;
+  position: fixed;
+  width: 95vw;
+  z-index: 40;
+}
+
 .videoGrid {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
+  min-height: 0;
 }
 
-.videoGrid video {
-  aspect-ratio: 16 / 9;
+.videoGrid.hasPinnedVideo {
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+}
+
+.videoTile {
   background: #172033;
   border-radius: 8px;
   min-height: 120px;
+  overflow: hidden;
+  position: relative;
+}
+
+.videoTile.isPinnedVideo {
+  height: 100%;
+  min-height: 0;
+}
+
+.videoTile.isHiddenVideo {
+  display: none;
+}
+
+.videoTile video {
+  aspect-ratio: 16 / 9;
+  background: #172033;
   object-fit: cover;
   width: 100%;
+}
+
+.videoTile.isPinnedVideo video {
+  aspect-ratio: auto;
+  height: 100%;
+  object-fit: contain;
+}
+
+.videoOverlay {
+  align-items: center;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+}
+
+.videoOverlay span {
+  background: rgba(17, 24, 39, 0.72);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 12px;
+  max-width: calc(100% - 44px);
+  overflow: hidden;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinButton {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.pinButton:hover {
+  background: #ffffff;
 }
 
 .callActions {
@@ -298,6 +377,12 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.isPinnedMode .callActions {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 10px;
 }
 
 .iconTextButton {
@@ -700,15 +785,38 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .videoGrid video {
+  .videoTile {
     border-radius: 6px;
     min-height: 78px;
+  }
+
+  .videoTile video {
+    min-height: 78px;
+  }
+
+  .callPanel.isPinnedMode {
+    border-radius: 0;
+    height: 100dvh;
+    inset: 0;
+    padding: 8px;
+    width: 100vw;
+  }
+
+  .videoTile.isPinnedVideo,
+  .videoTile.isPinnedVideo video {
+    min-height: 0;
+  }
+
+  .videoOverlay {
+    bottom: 6px;
+    left: 6px;
+    right: 6px;
   }
 
   .callActions {
     display: grid;
     gap: 8px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
   }
 
   .iconTextButton,

@@ -5,6 +5,8 @@ import type { Session } from "@supabase/supabase-js";
 import {
   Hash,
   LogOut,
+  Maximize2,
+  Minimize2,
   MonitorUp,
   Phone,
   PhoneOff,
@@ -13,7 +15,8 @@ import {
   ShieldCheck,
   Trash2,
   UserRound,
-  Video
+  Video,
+  VideoOff
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { CallSignal, Message, Profile, Room } from "@/lib/types";
@@ -616,6 +619,8 @@ function Avatar({ profile }: { profile: Profile }) {
 function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleId: string }) {
   const [callState, setCallState] = useState<"idle" | "calling" | "connected">("idle");
   const [roomId, setRoomId] = useState("");
+  const [pinnedVideo, setPinnedVideo] = useState<"local" | "remote" | null>(null);
+  const [localMedia, setLocalMedia] = useState<"none" | "camera" | "screen">("none");
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const remoteVideo = useRef<HTMLVideoElement | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -655,6 +660,15 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
     return connection;
   }, [sendSignal]);
 
+  const renegotiate = useCallback(
+    async (connection: RTCPeerConnection, room: string) => {
+      const offer = await connection.createOffer();
+      await connection.setLocalDescription(offer);
+      await sendSignal("offer", { type: offer.type, sdp: offer.sdp }, room);
+    },
+    [sendSignal]
+  );
+
   const attachLocalStream = useCallback(async (screen = false) => {
     const stream = screen
       ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
@@ -662,11 +676,21 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
 
     localStream.current?.getTracks().forEach((track) => track.stop());
     localStream.current = stream;
+    setLocalMedia(screen ? "screen" : "camera");
     if (localVideo.current) localVideo.current.srcObject = stream;
 
     const connection = await ensurePeer();
     connection.getSenders().forEach((sender) => connection.removeTrack(sender));
     stream.getTracks().forEach((track) => connection.addTrack(track, stream));
+
+    if (screen) {
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        setLocalMedia("none");
+        localStream.current = null;
+        if (localVideo.current) localVideo.current.srcObject = null;
+      });
+    }
+
     return connection;
   }, [ensurePeer]);
 
@@ -676,11 +700,43 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
       setRoomId(room);
       setCallState("calling");
       const connection = await attachLocalStream(screen);
-      const offer = await connection.createOffer();
-      await connection.setLocalDescription(offer);
-      await sendSignal("offer", { type: offer.type, sdp: offer.sdp }, room);
+      await renegotiate(connection, room);
     },
-    [attachLocalStream, circleId, me.id, peer.id, sendSignal]
+    [attachLocalStream, circleId, me.id, peer.id, renegotiate]
+  );
+
+  const shareMedia = useCallback(
+    async (screen = false) => {
+      const room = roomId || `${circleId}:${[me.id, peer.id].sort().join("-")}`;
+      setRoomId(room);
+      if (callState === "idle") setCallState("calling");
+      const connection = await attachLocalStream(screen);
+      await renegotiate(connection, room);
+    },
+    [attachLocalStream, callState, circleId, me.id, peer.id, renegotiate, roomId]
+  );
+
+  const stopLocalMedia = useCallback(async () => {
+    const connection = peerConnection.current;
+    const stream = localStream.current;
+
+    if (connection && stream) {
+      const trackIds = new Set(stream.getTracks().map((track) => track.id));
+      connection
+        .getSenders()
+        .filter((sender) => sender.track && trackIds.has(sender.track.id))
+        .forEach((sender) => connection.removeTrack(sender));
+    }
+
+    stream?.getTracks().forEach((track) => track.stop());
+    localStream.current = null;
+    setLocalMedia("none");
+    if (localVideo.current) localVideo.current.srcObject = null;
+
+    if (connection && roomId && callState !== "idle") {
+      await renegotiate(connection, roomId);
+    }
+  }, [callState, renegotiate, roomId]
   );
 
   const hangup = useCallback(async () => {
@@ -691,6 +747,8 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
     localStream.current = null;
     if (localVideo.current) localVideo.current.srcObject = null;
     if (remoteVideo.current) remoteVideo.current.srcObject = null;
+    setPinnedVideo(null);
+    setLocalMedia("none");
     setCallState("idle");
   }, [sendSignal]);
 
@@ -708,6 +766,8 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
             localStream.current?.getTracks().forEach((track) => track.stop());
             peerConnection.current?.close();
             peerConnection.current = null;
+            setPinnedVideo(null);
+            setLocalMedia("none");
             setCallState("idle");
             return;
           }
@@ -717,7 +777,6 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
           if (signal.type === "offer") {
             setRoomId(signal.room_id);
             setCallState("calling");
-            await attachLocalStream(false);
             await connection.setRemoteDescription(
               new RTCSessionDescription(signal.payload as unknown as RTCSessionDescriptionInit)
             );
@@ -743,23 +802,55 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [attachLocalStream, circleId, ensurePeer, me.id, peer.id, sendSignal]);
+  }, [circleId, ensurePeer, me.id, peer.id, sendSignal]);
 
   return (
-    <section className="callPanel">
-      <div className="videoGrid">
-        <video ref={localVideo} autoPlay muted playsInline />
-        <video ref={remoteVideo} autoPlay playsInline />
+    <section className={`callPanel ${pinnedVideo ? "isPinnedMode" : ""}`}>
+      <div className={`videoGrid ${pinnedVideo ? "hasPinnedVideo" : ""}`}>
+        <div className={`videoTile ${pinnedVideo === "local" ? "isPinnedVideo" : ""} ${pinnedVideo === "remote" ? "isHiddenVideo" : ""}`}>
+          <video ref={localVideo} autoPlay muted playsInline />
+          <div className="videoOverlay">
+            <span>{localMedia === "screen" ? "Your screen" : localMedia === "camera" ? "Your camera" : "Camera off"}</span>
+            <button
+              className="pinButton"
+              type="button"
+              onClick={() => setPinnedVideo(pinnedVideo === "local" ? null : "local")}
+              title={pinnedVideo === "local" ? "Exit pinned view" : "Pin your video or screen"}
+            >
+              {pinnedVideo === "local" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
+        </div>
+        <div className={`videoTile ${pinnedVideo === "remote" ? "isPinnedVideo" : ""} ${pinnedVideo === "local" ? "isHiddenVideo" : ""}`}>
+          <video ref={remoteVideo} autoPlay playsInline />
+          <div className="videoOverlay">
+            <span>{peer.display_name}</span>
+            <button
+              className="pinButton"
+              type="button"
+              onClick={() => setPinnedVideo(pinnedVideo === "remote" ? null : "remote")}
+              title={pinnedVideo === "remote" ? "Exit pinned view" : "Pin shared screen or video"}
+            >
+              {pinnedVideo === "remote" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
+        </div>
       </div>
       <div className="callActions">
-        <button className="iconTextButton" onClick={() => startCall(false)} disabled={callState !== "idle"}>
+        <button className="iconTextButton" onClick={() => (callState === "idle" ? startCall(false) : shareMedia(false))}>
           <Video size={18} />
-          Video
+          Camera
         </button>
-        <button className="iconTextButton" onClick={() => startCall(true)} disabled={callState !== "idle"}>
+        <button className="iconTextButton" onClick={() => (callState === "idle" ? startCall(true) : shareMedia(true))}>
           <MonitorUp size={18} />
           Screen
         </button>
+        {localMedia !== "none" && (
+          <button className="iconTextButton" onClick={stopLocalMedia}>
+            <VideoOff size={18} />
+            Stop
+          </button>
+        )}
         {callState !== "idle" ? (
           <button className="dangerButton" onClick={hangup}>
             <PhoneOff size={18} />
