@@ -159,6 +159,45 @@ button:disabled {
   color: #111827;
 }
 
+.roomCodeSwitch {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.roomCodeSwitch input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #ffffff;
+  min-height: 42px;
+  min-width: 0;
+  outline: none;
+  padding: 0 12px;
+}
+
+.roomCodeSwitch input::placeholder {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.roomCodeSwitch input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.16);
+}
+
+.roomCodeSwitch button {
+  align-items: center;
+  background: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
 .people {
   display: flex;
   flex: 1;
@@ -674,6 +713,10 @@ button:disabled {
     min-height: 40px;
   }
 
+  .roomCodeSwitch {
+    grid-column: 1 / -1;
+  }
+
   .people {
     grid-column: 1 / -1;
     flex-direction: row;
@@ -726,6 +769,15 @@ button:disabled {
 
   .privacy {
     font-size: 13px;
+  }
+
+  .roomCodeSwitch {
+    grid-template-columns: 1fr 44px;
+  }
+
+  .roomCodeSwitch button {
+    font-size: 0;
+    padding: 0;
   }
 
   .person {

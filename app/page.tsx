@@ -35,6 +35,7 @@ export default function Home() {
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [body, setBody] = useState("");
   const [notice, setNotice] = useState("");
+  const [roomCodeInput, setRoomCodeInput] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -259,6 +260,31 @@ export default function Home() {
     if (error) setNotice(error.message);
   }
 
+  async function switchRoomByCode(event: FormEvent) {
+    event.preventDefault();
+    const roomCode = roomCodeInput.replace(/\D/g, "").slice(0, 10);
+
+    if (roomCode.length !== 10) {
+      setNotice("Room code must be exactly 10 digits.");
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("join_private_room", {
+      room_code: roomCode
+    });
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    const joinedRoom = data as Room | null;
+    setRoomCodeInput("");
+    setNotice("");
+    await loadRooms();
+    if (joinedRoom?.id) setSelectedRoomId(joinedRoom.id);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <main className="authShell">
@@ -316,6 +342,20 @@ export default function Home() {
             ))}
           </select>
         </div>
+
+        <form className="roomCodeSwitch" onSubmit={switchRoomByCode}>
+          <input
+            inputMode="numeric"
+            pattern="[0-9]{10}"
+            placeholder="Enter another room code"
+            value={roomCodeInput}
+            onChange={(event) => setRoomCodeInput(event.target.value.replace(/\D/g, "").slice(0, 10))}
+          />
+          <button type="submit">
+            <Hash size={16} />
+            Switch
+          </button>
+        </form>
 
         <div className="people">
           {profiles
