@@ -25,8 +25,11 @@ const colors = ["#2563eb", "#059669", "#dc2626", "#7c3aed", "#d97706", "#0891b2"
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomsChecked, setRoomsChecked] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -40,10 +43,17 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setProfile(null);
+      setProfileChecked(false);
+      setRooms([]);
+      setRoomsChecked(false);
+      setSelectedRoomId("");
     });
 
     return () => data.subscription.unsubscribe();
@@ -51,6 +61,7 @@ export default function Home() {
 
   const loadProfile = useCallback(async () => {
     if (!session?.user.id) return;
+    setProfileChecked(false);
 
     const { data, error } = await supabase
       .from("profiles")
@@ -60,6 +71,7 @@ export default function Home() {
 
     if (error) setNotice(error.message);
     setProfile(data);
+    setProfileChecked(true);
   }, [session?.user.id]);
 
   const loadProfiles = useCallback(async () => {
@@ -86,6 +98,7 @@ export default function Home() {
 
   const loadRooms = useCallback(async () => {
     if (!session?.user.id) return;
+    setRoomsChecked(false);
 
     const { data, error } = await supabase
       .from("room_members")
@@ -95,6 +108,7 @@ export default function Home() {
 
     if (error) {
       setNotice(error.message);
+      setRoomsChecked(true);
       return;
     }
 
@@ -102,7 +116,13 @@ export default function Home() {
       .map((item) => item.room)
       .filter((item): item is Room => Boolean(item));
     setRooms(joinedRooms);
-    setSelectedRoomId((current) => current || joinedRooms[0]?.id || "");
+    setRoomsChecked(true);
+    setSelectedRoomId((current) => {
+      if (current && joinedRooms.some((room) => room.id === current)) return current;
+      const savedRoomId = window.localStorage.getItem(`friend-circle:selected-room:${session.user.id}`);
+      if (savedRoomId && joinedRooms.some((room) => room.id === savedRoomId)) return savedRoomId;
+      return joinedRooms[0]?.id || "";
+    });
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -110,6 +130,11 @@ export default function Home() {
     loadProfile();
     loadRooms();
   }, [loadProfile, loadRooms, session]);
+
+  useEffect(() => {
+    if (!session?.user.id || !selectedRoomId) return;
+    window.localStorage.setItem(`friend-circle:selected-room:${session.user.id}`, selectedRoomId);
+  }, [selectedRoomId, session?.user.id]);
 
   useEffect(() => {
     setProfiles([]);
@@ -297,12 +322,24 @@ export default function Home() {
     );
   }
 
+  if (!authReady) {
+    return <LoadingScreen label="Opening your chat" />;
+  }
+
   if (!session) {
     return <AuthScreen authMode={authMode} setAuthMode={setAuthMode} notice={notice} setNotice={setNotice} />;
   }
 
+  if (!profileChecked) {
+    return <LoadingScreen label="Loading your profile" />;
+  }
+
   if (!profile) {
     return <ProfileSetup userId={session.user.id} onDone={loadProfile} notice={notice} setNotice={setNotice} />;
+  }
+
+  if (!roomsChecked) {
+    return <LoadingScreen label="Restoring your room" />;
   }
 
   if (!selectedRoom) {
@@ -443,6 +480,15 @@ export default function Home() {
           {notice}
         </button>
       )}
+    </main>
+  );
+}
+
+function LoadingScreen({ label }: { label: string }) {
+  return (
+    <main className="loadingShell">
+      <div className="loadingMark">FC</div>
+      <p>{label}</p>
     </main>
   );
 }

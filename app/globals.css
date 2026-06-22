@@ -660,6 +660,34 @@ button:disabled {
   z-index: 20;
 }
 
+.loadingShell {
+  align-items: center;
+  background: #eef3f8;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+}
+
+.loadingMark {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 8px;
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 800;
+  height: 54px;
+  justify-content: center;
+  width: 54px;
+}
+
+.loadingShell p {
+  margin: 0;
+}
+
 @media (max-width: 860px) {
   body {
     overflow: auto;
