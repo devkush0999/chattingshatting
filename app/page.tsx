@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   Hash,
@@ -12,16 +12,38 @@ import {
   PhoneOff,
   Plus,
   Send,
+  Settings,
   ShieldCheck,
   Trash2,
   UserRound,
   Video,
-  VideoOff
+  VideoOff,
+  X
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { CallSignal, Message, Profile, Room } from "@/lib/types";
 
 const colors = ["#2563eb", "#059669", "#dc2626", "#7c3aed", "#d97706", "#0891b2"];
+
+type UiChromeContextValue = {
+  isSettingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+};
+
+const UiChromeContext = createContext<UiChromeContextValue | null>(null);
+
+function useUiChrome() {
+  const context = useContext(UiChromeContext);
+  if (!context) throw new Error("useUiChrome must be used inside UiChromeProvider.");
+  return context;
+}
+
+function UiChromeProvider({ children }: { children: ReactNode }) {
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
+  const value = useMemo(() => ({ isSettingsOpen, setSettingsOpen }), [isSettingsOpen]);
+
+  return <UiChromeContext.Provider value={value}>{children}</UiChromeContext.Provider>;
+}
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -354,7 +376,8 @@ export default function Home() {
   }
 
   return (
-    <main className="shell">
+    <UiChromeProvider>
+      <main className="shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">FC</div>
@@ -363,36 +386,6 @@ export default function Home() {
             <p>{profiles.length}/10 in this room</p>
           </div>
         </div>
-
-        <div className="privacy">
-          <ShieldCheck size={18} />
-          <span>Room code {selectedRoom.code}</span>
-        </div>
-
-        <div className="roomSwitcher">
-          <label>Room</label>
-          <select value={selectedRoomId} onChange={(event) => setSelectedRoomId(event.target.value)}>
-            {rooms.map((room) => (
-              <option value={room.id} key={room.id}>
-                {room.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <form className="roomCodeSwitch" onSubmit={switchRoomByCode}>
-          <input
-            inputMode="numeric"
-            pattern="[0-9]{10}"
-            placeholder="Enter another room code"
-            value={roomCodeInput}
-            onChange={(event) => setRoomCodeInput(event.target.value.replace(/\D/g, "").slice(0, 10))}
-          />
-          <button type="submit">
-            <Hash size={16} />
-            Switch
-          </button>
-        </form>
 
         <div className="people">
           {profiles
@@ -410,10 +403,7 @@ export default function Home() {
             ))}
         </div>
 
-        <button className="ghostButton" onClick={() => supabase.auth.signOut()}>
-          <LogOut size={18} />
-          Sign out
-        </button>
+        <OpenSettingsButton />
       </aside>
 
       <section className="chat">
@@ -426,6 +416,7 @@ export default function Home() {
             </div>
           </div>
           <div className="headerActions">
+            <OpenSettingsButton compact />
             <button className="iconButton" onClick={deleteHistory} title="Delete history for me" disabled={!selectedId}>
               <Trash2 size={19} />
             </button>
@@ -480,7 +471,108 @@ export default function Home() {
           {notice}
         </button>
       )}
-    </main>
+      </main>
+      <SettingsDrawer
+        membersCount={profiles.length}
+        roomCodeInput={roomCodeInput}
+        rooms={rooms}
+        selectedRoom={selectedRoom}
+        selectedRoomId={selectedRoomId}
+        setRoomCodeInput={setRoomCodeInput}
+        setSelectedRoomId={setSelectedRoomId}
+        switchRoomByCode={switchRoomByCode}
+      />
+    </UiChromeProvider>
+  );
+}
+
+function OpenSettingsButton({ compact = false }: { compact?: boolean }) {
+  const { setSettingsOpen } = useUiChrome();
+
+  return (
+    <button
+      className={compact ? "iconButton" : "ghostButton"}
+      onClick={() => setSettingsOpen(true)}
+      title="Room settings"
+      type="button"
+    >
+      <Settings size={18} />
+      {!compact && "Settings"}
+    </button>
+  );
+}
+
+function SettingsDrawer({
+  membersCount,
+  roomCodeInput,
+  rooms,
+  selectedRoom,
+  selectedRoomId,
+  setRoomCodeInput,
+  setSelectedRoomId,
+  switchRoomByCode
+}: {
+  membersCount: number;
+  roomCodeInput: string;
+  rooms: Room[];
+  selectedRoom: Room;
+  selectedRoomId: string;
+  setRoomCodeInput: (value: string) => void;
+  setSelectedRoomId: (value: string) => void;
+  switchRoomByCode: (event: FormEvent) => void;
+}) {
+  const { isSettingsOpen, setSettingsOpen } = useUiChrome();
+
+  return (
+    <div className={`settingsLayer ${isSettingsOpen ? "open" : ""}`} aria-hidden={!isSettingsOpen}>
+      <button className="settingsBackdrop" onClick={() => setSettingsOpen(false)} type="button" />
+      <aside className="settingsDrawer" aria-label="Room settings">
+        <div className="settingsHeader">
+          <div>
+            <h2>Room settings</h2>
+            <p>{membersCount}/10 members</p>
+          </div>
+          <button className="iconButton" onClick={() => setSettingsOpen(false)} type="button" title="Close settings">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="privacy">
+          <ShieldCheck size={18} />
+          <span>Room code {selectedRoom.code}</span>
+        </div>
+
+        <div className="roomSwitcher">
+          <label>Room</label>
+          <select value={selectedRoomId} onChange={(event) => setSelectedRoomId(event.target.value)}>
+            {rooms.map((room) => (
+              <option value={room.id} key={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <form className="roomCodeSwitch" onSubmit={switchRoomByCode}>
+          <input
+            inputMode="numeric"
+            pattern="[0-9]{10}"
+            placeholder="Enter another room code"
+            value={roomCodeInput}
+            onChange={(event) => setRoomCodeInput(event.target.value.replace(/\D/g, "").slice(0, 10))}
+          />
+          <button type="submit">
+            <Hash size={16} />
+            Switch
+          </button>
+        </form>
+
+        <button className="ghostButton settingsSignOut" onClick={() => supabase.auth.signOut()} type="button">
+          <LogOut size={18} />
+          Sign out
+        </button>
+      </aside>
+    </div>
   );
 }
 
@@ -891,37 +983,39 @@ function CallPanel({ me, peer, circleId }: { me: Profile; peer: Profile; circleI
   }, [circleId, ensurePeer, me.id, peer.id, sendSignal]);
 
   return (
-    <section className={`callPanel ${pinnedVideo ? "isPinnedMode" : ""}`}>
-      <div className={`videoGrid ${pinnedVideo ? "hasPinnedVideo" : ""}`}>
-        <div className={`videoTile ${pinnedVideo === "local" ? "isPinnedVideo" : ""} ${pinnedVideo === "remote" ? "isHiddenVideo" : ""}`}>
-          <video ref={localVideo} autoPlay muted playsInline />
-          <div className="videoOverlay">
-            <span>{localMedia === "screen" ? "Your screen" : localMedia === "camera" ? "Your camera" : "Camera off"}</span>
-            <button
-              className="pinButton"
-              type="button"
-              onClick={() => setPinnedVideo(pinnedVideo === "local" ? null : "local")}
-              title={pinnedVideo === "local" ? "Exit pinned view" : "Pin your video or screen"}
-            >
-              {pinnedVideo === "local" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
+    <section className={`callPanel ${pinnedVideo ? "isPinnedMode" : ""} ${callState === "idle" ? "isIdleCall" : ""}`}>
+      {callState !== "idle" && (
+        <div className={`videoGrid ${pinnedVideo ? "hasPinnedVideo" : ""}`}>
+          <div className={`videoTile ${pinnedVideo === "local" ? "isPinnedVideo" : ""} ${pinnedVideo === "remote" ? "isHiddenVideo" : ""}`}>
+            <video ref={localVideo} autoPlay muted playsInline />
+            <div className="videoOverlay">
+              <span>{localMedia === "screen" ? "Your screen" : localMedia === "camera" ? "Your camera" : "Camera off"}</span>
+              <button
+                className="pinButton"
+                type="button"
+                onClick={() => setPinnedVideo(pinnedVideo === "local" ? null : "local")}
+                title={pinnedVideo === "local" ? "Exit pinned view" : "Pin your video or screen"}
+              >
+                {pinnedVideo === "local" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            </div>
+          </div>
+          <div className={`videoTile ${pinnedVideo === "remote" ? "isPinnedVideo" : ""} ${pinnedVideo === "local" ? "isHiddenVideo" : ""}`}>
+            <video ref={remoteVideo} autoPlay playsInline />
+            <div className="videoOverlay">
+              <span>{peer.display_name}</span>
+              <button
+                className="pinButton"
+                type="button"
+                onClick={() => setPinnedVideo(pinnedVideo === "remote" ? null : "remote")}
+                title={pinnedVideo === "remote" ? "Exit pinned view" : "Pin shared screen or video"}
+              >
+                {pinnedVideo === "remote" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            </div>
           </div>
         </div>
-        <div className={`videoTile ${pinnedVideo === "remote" ? "isPinnedVideo" : ""} ${pinnedVideo === "local" ? "isHiddenVideo" : ""}`}>
-          <video ref={remoteVideo} autoPlay playsInline />
-          <div className="videoOverlay">
-            <span>{peer.display_name}</span>
-            <button
-              className="pinButton"
-              type="button"
-              onClick={() => setPinnedVideo(pinnedVideo === "remote" ? null : "remote")}
-              title={pinnedVideo === "remote" ? "Exit pinned view" : "Pin shared screen or video"}
-            >
-              {pinnedVideo === "remote" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
       <div className="callActions">
         <button className="iconTextButton" onClick={() => (callState === "idle" ? startCall(false) : shareMedia(false))}>
           <Video size={18} />

@@ -317,6 +317,11 @@ button:disabled {
   padding: 12px 22px;
 }
 
+.callPanel.isIdleCall {
+  padding-bottom: 10px;
+  padding-top: 10px;
+}
+
 .callPanel.isPinnedMode {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
@@ -660,6 +665,77 @@ button:disabled {
   z-index: 20;
 }
 
+.settingsLayer {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 60;
+}
+
+.settingsLayer.open {
+  pointer-events: auto;
+}
+
+.settingsBackdrop {
+  background: rgba(17, 24, 39, 0.42);
+  border: 0;
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+  transition: opacity 180ms ease;
+}
+
+.settingsLayer.open .settingsBackdrop {
+  opacity: 1;
+}
+
+.settingsDrawer {
+  background: #111827;
+  box-shadow: -24px 0 80px rgba(17, 24, 39, 0.28);
+  color: #ffffff;
+  display: grid;
+  gap: 16px;
+  height: 100dvh;
+  margin-left: auto;
+  max-width: min(390px, 100vw);
+  overflow: auto;
+  padding: 20px;
+  position: relative;
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  width: 100%;
+}
+
+.settingsLayer.open .settingsDrawer {
+  transform: translateX(0);
+}
+
+.settingsHeader {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.settingsHeader h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.settingsHeader p {
+  color: #bfdbfe;
+  margin: 4px 0 0;
+}
+
+.settingsDrawer .iconButton {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.settingsSignOut {
+  margin-top: auto;
+}
+
 .loadingShell {
   align-items: center;
   background: #eef3f8;
@@ -860,6 +936,11 @@ button:disabled {
     padding-top: 10px;
   }
 
+  .callPanel.isIdleCall {
+    padding-bottom: 8px;
+    padding-top: 8px;
+  }
+
   .videoGrid {
     gap: 8px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -959,6 +1040,11 @@ button:disabled {
     bottom: max(12px, env(safe-area-inset-bottom));
     font-size: 14px;
     width: calc(100vw - 24px);
+  }
+
+  .settingsDrawer {
+    max-width: 100vw;
+    padding: 16px;
   }
 }
 
